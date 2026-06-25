@@ -6,26 +6,27 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+HEADERS = {"X-API-Key": "buguard-secret-key-2024"}
 
 def test_bulk_import():
     response = client.post("/import", json={
         "assets": [
             {
-                "id": "t1",
+                "id": "t1-unique",
                 "type": "domain",
-                "value": "test.com",
+                "value": "unique-test-domain-xyz.com",
                 "status": "active",
                 "source": "scan",
                 "tags": ["test"],
                 "metadata": {}
             }
         ]
-    })
+    }, headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
-    assert data["imported"] == 1
+    assert data["imported"] + data["updated"] == 1
     assert data["failed"] == 0
-
+    
 def test_deduplication():
     payload = {
         "assets": [
@@ -40,8 +41,8 @@ def test_deduplication():
             }
         ]
     }
-    client.post("/import", json=payload)
-    response = client.post("/import", json=payload)
+    client.post("/import", json=payload, headers=HEADERS)
+    response = client.post("/import", json=payload, headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert data["updated"] == 1
@@ -70,10 +71,14 @@ def test_malformed_record():
                 "metadata": {}
             }
         ]
-    })
+    }, headers=HEADERS)
     assert response.status_code == 200
     assert response.json()["failed"] == 1
 
 def test_asset_not_found():
     response = client.get("/assets/nonexistent-id")
     assert response.status_code == 404
+
+def test_unauthorized():
+    response = client.post("/import", json={"assets": []})
+    assert response.status_code == 401

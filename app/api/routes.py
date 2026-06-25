@@ -3,13 +3,20 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Asset, AssetRelationship, AssetStatus
 from app.schemas import AssetCreate, AssetResponse, BulkImportRequest
-from datetime import datetime
+from app.auth import verify_api_key
+from datetime import datetime, timezone
 from typing import List, Optional
+
+def utcnow():
+    return datetime.now(timezone.utc)
 
 router = APIRouter()
 
 @router.post("/import")
-def bulk_import(request: BulkImportRequest, db: Session = Depends(get_db)):
+def bulk_import(
+    request: BulkImportRequest,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key)):
     imported = 0
     updated = 0
     failed = 0
@@ -31,7 +38,7 @@ def bulk_import(request: BulkImportRequest, db: Session = Depends(get_db)):
 
             if existing:
                 # Update last_seen and merge tags and metadata
-                existing.last_seen = datetime.utcnow()
+                existing.last_seen = utcnow()
                 existing.tags = list(set((existing.tags or []) + (item.tags or [])))
                 existing.metadata_ = {**(existing.metadata_ or {}), **(item.metadata or {})}
                 # If asset was stale, mark it active again
@@ -48,8 +55,8 @@ def bulk_import(request: BulkImportRequest, db: Session = Depends(get_db)):
                     source=item.source or "import",
                     tags=item.tags or [],
                     metadata_=item.metadata or {},
-                    first_seen=datetime.utcnow(),
-                    last_seen=datetime.utcnow(),
+                    first_seen=utcnow(),
+                    last_seen=utcnow(),
                 )
                 db.add(asset)
                 imported += 1
