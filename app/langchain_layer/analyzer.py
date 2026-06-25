@@ -9,33 +9,32 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def get_llm():
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY environment variable is not set")
     return ChatGroq(
-        groq_api_key=os.getenv("GROQ_API_KEY"),
+        groq_api_key=api_key,
         model="llama-3.3-70b-versatile",
         temperature=0.1
     )
 
-def get_all_assets(db: Session):
-    assets = db.query(Asset).all()
-    return [
-        {
-            "id": a.id,
-            "type": a.type,
-            "value": a.value,
-            "status": a.status,
-            "first_seen": str(a.first_seen),
-            "last_seen": str(a.last_seen),
-            "source": a.source,
-            "tags": a.tags or [],
-            "metadata": a.metadata_ or {}
-        }
-        for a in assets
-    ]
-
+def safe_parse_json(text: str, fallback: dict) -> dict:
+    try:
+        text = text.strip()
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return json.loads(text)
+    except Exception:
+        return fallback
 
 # ─── Feature 1: Natural-language query ───────────────────────────────────────
 
 def natural_language_query(question: str, db: Session):
+    if not question or len(question.strip()) < 3:
+        return {"answer": "Please provide a valid question.", "matches": []}
+
     assets = get_all_assets(db)
 
     if not assets:
@@ -65,23 +64,21 @@ Respond with JSON only, no extra text.
 """
     )
 
-    llm = get_llm()
-    chain = prompt | llm
-
-    result = chain.invoke({
-        "assets": json.dumps(assets, indent=2),
-        "question": question
-    })
-
     try:
-        text = result.content.strip()
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        return json.loads(text)
-    except Exception:
-        return {"answer": result.content, "matches": []}
+        llm = get_llm()
+        chain = prompt | llm
+        result = chain.invoke({
+            "assets": json.dumps(assets, indent=2),
+            "question": question
+        })
+        return safe_parse_json(result.content, {
+            "answer": result.content,
+            "matches": []
+        })
+    except ValueError as e:
+        return {"error": str(e), "matches": []}
+    except Exception as e:
+        return {"error": f"LLM service unavailable: {str(e)}", "matches": []}
 
 
 # ─── Feature 2: Risk scoring & summarization ─────────────────────────────────
@@ -89,7 +86,7 @@ Respond with JSON only, no extra text.
 def risk_scoring(asset_id: str, db: Session):
     asset = db.query(Asset).filter(Asset.id == asset_id).first()
     if not asset:
-        return {"error": "Asset not found"}
+        return {"error": f"Asset '{asset_id}' not found in database"}
 
     asset_data = {
         "id": asset.id,
@@ -127,20 +124,15 @@ Respond with JSON only, no extra text.
 """
     )
 
-    llm = get_llm()
-    chain = prompt | llm
-
-    result = chain.invoke({"asset": json.dumps(asset_data, indent=2)})
-
     try:
-        text = result.content.strip()
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        return json.loads(text)
-    except Exception:
-        return {"raw_response": result.content}
+        llm = get_llm()
+        chain = prompt | llm
+        result = chain.invoke({"asset": json.dumps(asset_data, indent=2)})
+        return safe_parse_json(result.content, {"raw_response": result.content})
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"LLM service unavailable: {str(e)}"}
 
 
 # ─── Feature 3: Enrichment & categorization ──────────────────────────────────
@@ -246,12 +238,15 @@ Write in clear professional English suitable for a security team.
 """
     )
 
-    llm = get_llm()
-    chain = prompt | llm
-
-    result = chain.invoke({
-        "assets": json.dumps(asset_list, indent=2),
-        "total": len(asset_list)
-    })
-
-    return {"report": result.content}
+    try:
+        llm = get_llm()
+        chain = prompt | llm
+        result = chain.invoke({
+            "assets": json.dumps(asset_list, indent=2),
+            "total": len(asset_list)
+        })
+        return {"report": result.content}
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"LLM service unavailable: {str(e)}"}
