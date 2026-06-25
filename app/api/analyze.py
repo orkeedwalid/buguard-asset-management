@@ -61,3 +61,14 @@ def analyze_report(
     api_key: str = Depends(verify_api_key)
 ):
     return generate_report(db, request.filter_type, request.filter_status)
+
+from app.cache import llm_cache
+
+@router.get("/cache/stats")
+def cache_stats(api_key: str = Depends(verify_api_key)):
+    return llm_cache.stats()
+
+@router.delete("/cache/clear")
+def cache_clear(api_key: str = Depends(verify_api_key)):
+    llm_cache.clear()
+    return {"message": "Cache cleared successfully"}

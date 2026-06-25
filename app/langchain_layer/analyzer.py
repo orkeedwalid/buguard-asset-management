@@ -5,6 +5,7 @@ from app.models import Asset
 import os
 import json
 from dotenv import load_dotenv
+from app.cache import llm_cache
 
 load_dotenv()
 
@@ -36,9 +37,14 @@ def natural_language_query(question: str, db: Session):
         return {"answer": "Please provide a valid question.", "matches": []}
 
     assets = get_all_assets(db)
-
     if not assets:
         return {"answer": "No assets found in the database.", "matches": []}
+
+    cache_key = {"fn": "query", "question": question, "asset_count": len(assets)}
+    cached = llm_cache.get(cache_key)
+    if cached:
+        cached["cached"] = True
+        return cached
 
     prompt = PromptTemplate(
         input_variables=["assets", "question"],
@@ -71,16 +77,17 @@ Respond with JSON only, no extra text.
             "assets": json.dumps(assets, indent=2),
             "question": question
         })
-        return safe_parse_json(result.content, {
+        response = safe_parse_json(result.content, {
             "answer": result.content,
             "matches": []
         })
+        llm_cache.set(cache_key, response)
+        return response
     except ValueError as e:
         return {"error": str(e), "matches": []}
     except Exception as e:
         return {"error": f"LLM service unavailable: {str(e)}", "matches": []}
-
-
+    
 # ─── Feature 2: Risk scoring & summarization ─────────────────────────────────
 
 def risk_scoring(asset_id: str, db: Session):
@@ -96,6 +103,12 @@ def risk_scoring(asset_id: str, db: Session):
         "tags": asset.tags or [],
         "metadata": asset.metadata_ or {}
     }
+
+    cache_key = {"fn": "risk", "asset_id": asset_id}
+    cached = llm_cache.get(cache_key)
+    if cached:
+        cached["cached"] = True
+        return cached
 
     prompt = PromptTemplate(
         input_variables=["asset"],
@@ -128,12 +141,13 @@ Respond with JSON only, no extra text.
         llm = get_llm()
         chain = prompt | llm
         result = chain.invoke({"asset": json.dumps(asset_data, indent=2)})
-        return safe_parse_json(result.content, {"raw_response": result.content})
+        response = safe_parse_json(result.content, {"raw_response": result.content})
+        llm_cache.set(cache_key, response)
+        return response
     except ValueError as e:
         return {"error": str(e)}
     except Exception as e:
         return {"error": f"LLM service unavailable: {str(e)}"}
-
 
 # ─── Feature 3: Enrichment & categorization ──────────────────────────────────
 
