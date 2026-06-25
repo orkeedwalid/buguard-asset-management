@@ -1,0 +1,110 @@
+{
+  "assets": [
+    {
+      "id": "a1",
+      "type": "domain",
+      "value": "example.com",
+      "status": "active",
+      "source": "scan",
+      "tags": ["root", "production"],
+      "metadata": {}
+    },
+    {
+      "id": "a2",
+      "type": "subdomain",
+      "value": "api.example.com",
+      "status": "active",
+      "source": "scan",
+      "tags": ["prod", "api"],
+      "metadata": {}
+    },
+    {
+      "id": "a3",
+      "type": "certificate",
+      "value": "CN=api.example.com",
+      "status": "active",
+      "source": "scan",
+      "tags": [],
+      "metadata": {
+        "issuer": "Let's Encrypt",
+        "expires": "2024-01-02"
+      }
+    },
+    {
+      "id": "a4",
+      "type": "ip_address",
+      "value": "203.0.113.10",
+      "status": "active",
+      "source": "scan",
+      "tags": ["prod"],
+      "metadata": {}
+    },
+    {
+      "id": "a5",
+      "type": "service",
+      "value": "443/tcp",
+      "status": "active",
+      "source": "scan",
+      "tags": ["https"],
+      "metadata": {
+        "banner": "nginx/1.18.0",
+        "port": 443,
+        "protocol": "tcp"
+      }
+    },
+    {
+      "id": "a6",
+      "type": "technology",
+      "value": "nginx",
+      "status": "active",
+      "source": "scan",
+      "tags": ["webserver"],
+      "metadata": {
+        "version": "1.18.0"
+      }
+    },
+    {
+      "id": "a7",
+      "type": "subdomain",
+      "value": "staging.example.com",
+      "status": "active",
+      "source": "scan",
+      "tags": ["staging"],
+      "metadata": {}
+    },
+    {
+      "id": "a8",
+      "type": "certificate",
+      "value": "CN=staging.example.com",
+      "status": "stale",
+      "source": "scan",
+      "tags": ["staging"],
+      "metadata": {
+        "issuer": "Let's Encrypt",
+        "expires": "2023-06-01"
+      }
+    },
+    {
+      "id": "a9",
+      "type": "service",
+      "value": "22/tcp",
+      "status": "active",
+      "source": "scan",
+      "tags": ["ssh", "prod"],
+      "metadata": {
+        "banner": "OpenSSH_8.2",
+        "port": 22,
+        "protocol": "tcp"
+      }
+    },
+    {
+      "id": "a10",
+      "type": "subdomain",
+      "value": "dev.example.com",
+      "status": "active",
+      "source": "scan",
+      "tags": ["dev"],
+      "metadata": {}
+    }
+  ]
+}
