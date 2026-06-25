@@ -2,10 +2,10 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from sqlalchemy.orm import Session
 from app.models import Asset
+from app.cache import llm_cache
 import os
 import json
 from dotenv import load_dotenv
-from app.cache import llm_cache
 
 load_dotenv()
 
@@ -29,6 +29,23 @@ def safe_parse_json(text: str, fallback: dict) -> dict:
         return json.loads(text)
     except Exception:
         return fallback
+
+def get_all_assets(db: Session):
+    assets = db.query(Asset).all()
+    return [
+        {
+            "id": a.id,
+            "type": a.type,
+            "value": a.value,
+            "status": a.status,
+            "first_seen": str(a.first_seen),
+            "last_seen": str(a.last_seen),
+            "source": a.source,
+            "tags": a.tags or [],
+            "metadata": a.metadata_ or {}
+        }
+        for a in assets
+    ]
 
 # ─── Feature 1: Natural-language query ───────────────────────────────────────
 
@@ -87,7 +104,7 @@ Respond with JSON only, no extra text.
         return {"error": str(e), "matches": []}
     except Exception as e:
         return {"error": f"LLM service unavailable: {str(e)}", "matches": []}
-    
+
 # ─── Feature 2: Risk scoring & summarization ─────────────────────────────────
 
 def risk_scoring(asset_id: str, db: Session):
@@ -189,24 +206,19 @@ Respond with JSON only, no extra text.
 """
     )
 
-    llm = get_llm()
-    chain = prompt | llm
-
-    result = chain.invoke({"asset": json.dumps(asset_data, indent=2)})
-
     try:
-        text = result.content.strip()
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        enrichment = json.loads(text)
-        asset.metadata_ = {**(asset.metadata_ or {}), "enrichment": enrichment}
-        db.commit()
+        llm = get_llm()
+        chain = prompt | llm
+        result = chain.invoke({"asset": json.dumps(asset_data, indent=2)})
+        enrichment = safe_parse_json(result.content, {"raw_response": result.content})
+        if "raw_response" not in enrichment:
+            asset.metadata_ = {**(asset.metadata_ or {}), "enrichment": enrichment}
+            db.commit()
         return enrichment
-    except Exception:
-        return {"raw_response": result.content}
-
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"LLM service unavailable: {str(e)}"}
 
 # ─── Feature 4: Natural-language report generation ───────────────────────────
 
