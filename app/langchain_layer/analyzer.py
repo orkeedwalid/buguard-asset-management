@@ -30,8 +30,8 @@ def safe_parse_json(text: str, fallback: dict) -> dict:
     except Exception:
         return fallback
 
-def get_all_assets(db: Session):
-    assets = db.query(Asset).all()
+def get_all_assets(db: Session, org_id: str):
+    assets = db.query(Asset).filter(Asset.org_id == org_id).all()
     return [
         {
             "id": a.id,
@@ -49,11 +49,11 @@ def get_all_assets(db: Session):
 
 # ─── Feature 1: Natural-language query ───────────────────────────────────────
 
-def natural_language_query(question: str, db: Session):
+def natural_language_query(question: str, db: Session, org_id: str):
     if not question or len(question.strip()) < 3:
         return {"answer": "Please provide a valid question.", "matches": []}
 
-    assets = get_all_assets(db)
+    assets = get_all_assets(db, org_id)
     if not assets:
         return {"answer": "No assets found in the database.", "matches": []}
 
@@ -107,8 +107,8 @@ Respond with JSON only, no extra text.
 
 # ─── Feature 2: Risk scoring & summarization ─────────────────────────────────
 
-def risk_scoring(asset_id: str, db: Session):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+def risk_scoring(asset_id: str, db: Session, org_id: str):
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.org_id == org_id).first()
     if not asset:
         return {"error": f"Asset '{asset_id}' not found in database"}
 
@@ -168,8 +168,8 @@ Respond with JSON only, no extra text.
 
 # ─── Feature 3: Enrichment & categorization ──────────────────────────────────
 
-def enrich_asset(asset_id: str, db: Session):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+def enrich_asset(asset_id: str, db: Session, org_id: str):
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.org_id == org_id).first()
     if not asset:
         return {"error": "Asset not found"}
 
@@ -222,8 +222,8 @@ Respond with JSON only, no extra text.
 
 # ─── Feature 4: Natural-language report generation ───────────────────────────
 
-def generate_report(db: Session, filter_type: str = None, filter_status: str = None):
-    query = db.query(Asset)
+def generate_report(db: Session, org_id: str, filter_type: str = None, filter_status: str = None):
+    query = db.query(Asset).filter(Asset.org_id == org_id)
     if filter_type:
         query = query.filter(Asset.type == filter_type)
     if filter_status:
